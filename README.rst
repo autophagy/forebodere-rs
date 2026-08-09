@@ -12,10 +12,6 @@ To build::
 
   λ nix build
 
-Or, with cargo::
-
-  λ cargo build --release
-
 Running
 -------
 
