@@ -154,12 +154,19 @@ pub async fn status(ctx: Context<'_>) -> Result<(), Error> {
     let latency = ctx.ping().await;
 
     let response = format!(
-        "**Quotes**: {count}\n\
-         **Queries**: {queries}\n\
-         **Uptime**: {}\n\
-         **Latency**: {}ms\n\
-         **Version**: {}\n\
-         **Host**: {} {}",
+        "Bot Status:\n\
+         ```\n\
+         Quotes    :: {count}\n\
+         Queries   :: {queries}\n\
+         Uptime    :: {}\n\
+         Latency   :: {}ms\n\
+         Version   :: {}\n\
+         ```\n\
+         System Status:\n\
+         ```\n\
+         OS        :: {}\n\
+         Arch      :: {}\n\
+         ```",
         format_duration(uptime),
         latency.as_millis(),
         env!("CARGO_PKG_VERSION"),
