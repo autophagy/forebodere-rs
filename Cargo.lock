@@ -549,6 +549,8 @@ dependencies = [
  "poise",
  "rand 0.8.7",
  "rusqlite",
+ "serde",
+ "serde_json",
  "time",
  "tokio",
  "tokio-rusqlite",

@@ -6,6 +6,10 @@ let
   cfg = config.services.forebodere;
   user = "forebodere";
   group = user;
+  settingsFormat = pkgs.formats.json { };
+  configFile = settingsFormat.generate "forebodere-config.json" (cfg.settings // {
+    db = "/var/lib/forebodere/forebodere.db";
+  });
 in
 {
   options.services.forebodere = {
@@ -17,10 +21,25 @@ in
       example = "/run/secrets/forebodere.env";
     };
 
-    prefix = mkOption {
-      type = types.str;
-      default = "!";
-      description = lib.mdDoc "Command prefix.";
+    settings = mkOption {
+      inherit (settingsFormat) type;
+      default = { };
+      description = lib.mdDoc ''
+        Forebodere configuration, see <https://github.com/autophagy/forebodere-rs#configuration>.
+        `db` is set automatically from the service's StateDirectory and cannot be overridden here.
+      '';
+      example = {
+        prefix = "!";
+        lol_quiet_gap_seconds = 5;
+        laugh_words = [ "lol" "lmao" "rofl" ];
+        reactions = [{ phrase = "my wife"; emoji = "murk"; }];
+        lol_tier_messages = {
+          low = "Multilol!";
+          medium = "Ultralol!";
+          high = "M-M-M-MONSTERLOL!";
+        };
+        markov_default_order = 2;
+      };
     };
   };
 
@@ -47,7 +66,7 @@ in
         Group = group;
         StateDirectory = "forebodere";
         EnvironmentFile = cfg.environmentFile;
-        ExecStart = "${pkgs.forebodere}/bin/forebodere --db /var/lib/forebodere/forebodere.db --prefix ${cfg.prefix}";
+        ExecStart = "${pkgs.forebodere}/bin/forebodere --config ${configFile}";
       };
     };
   };

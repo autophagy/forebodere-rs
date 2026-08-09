@@ -14,6 +14,7 @@ fn tokenize(quote: &str) -> Vec<String> {
 
 pub const MIN_ORDER: u32 = 1;
 pub const MAX_ORDER: u32 = 5;
+pub const DEFAULT_ORDER: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Order(u32);
@@ -28,7 +29,7 @@ impl Order {
 
 impl Default for Order {
     fn default() -> Self {
-        Order(2)
+        Order(DEFAULT_ORDER)
     }
 }
 

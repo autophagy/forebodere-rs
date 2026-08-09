@@ -5,7 +5,8 @@ mod markov;
 
 use clap::Parser;
 use poise::serenity_prelude as serenity;
-use std::path::PathBuf;
+use serde::Deserialize;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -14,6 +15,7 @@ pub struct Data {
     pub db: tokio_rusqlite::Connection,
     pub markov: Arc<RwLock<markov::MarkovModel>>,
     pub lol: Arc<lol::LolTracker>,
+    pub config: Arc<Configuration>,
     pub started: Instant,
     pub queries: AtomicU64,
 }
@@ -26,13 +28,111 @@ const LOL_TICK_INTERVAL: Duration = Duration::from_secs(2);
 /// Forebodere, a Discord quote bot.
 #[derive(Parser)]
 struct Cli {
-    /// Path to the SQLite database.
+    /// Path to the JSON configuration file.
     #[arg(long)]
+    config: PathBuf,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct Reaction {
+    phrase: String,
+    emoji: String,
+}
+
+fn default_reactions() -> Vec<Reaction> {
+    vec![Reaction {
+        phrase: "my wife".to_string(),
+        emoji: "murk".to_string(),
+    }]
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TierMessages {
+    #[serde(default = "default_low_message")]
+    low: String,
+    #[serde(default = "default_medium_message")]
+    medium: String,
+    #[serde(default = "default_high_message")]
+    high: String,
+}
+
+fn default_low_message() -> String {
+    "Multilol!".to_string()
+}
+
+fn default_medium_message() -> String {
+    "Ultralol!".to_string()
+}
+
+fn default_high_message() -> String {
+    "M-M-M-MONSTERLOL!".to_string()
+}
+
+impl Default for TierMessages {
+    fn default() -> Self {
+        Self {
+            low: default_low_message(),
+            medium: default_medium_message(),
+            high: default_high_message(),
+        }
+    }
+}
+
+impl TierMessages {
+    fn get(&self, tier: lol::Tier) -> &str {
+        match tier {
+            lol::Tier::Low => &self.low,
+            lol::Tier::Medium => &self.medium,
+            lol::Tier::High => &self.high,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Configuration {
+    /// Path to the SQLite database.
     db: PathBuf,
 
-    /// Command prefix.
-    #[arg(long, default_value = "!")]
+    #[serde(default = "default_prefix")]
     prefix: String,
+
+    #[serde(default = "default_quiet_gap_seconds")]
+    lol_quiet_gap_seconds: u64,
+
+    #[serde(default = "default_laugh_words")]
+    laugh_words: Vec<String>,
+
+    #[serde(default = "default_reactions")]
+    reactions: Vec<Reaction>,
+
+    #[serde(default)]
+    lol_tier_messages: TierMessages,
+
+    #[serde(default = "default_markov_order")]
+    markov_default_order: u32,
+}
+
+fn default_prefix() -> String {
+    "!".to_string()
+}
+
+fn default_quiet_gap_seconds() -> u64 {
+    lol::DEFAULT_QUIET_GAP.as_secs()
+}
+
+fn default_laugh_words() -> Vec<String> {
+    Vec::new()
+}
+
+fn default_markov_order() -> u32 {
+    markov::DEFAULT_ORDER
+}
+
+fn load_configuration(path: &Path) -> Configuration {
+    let data = std::fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("Unable to read config file {}: {e}", path.display()));
+    serde_json::from_str(&data)
+        .unwrap_or_else(|e| panic!("Unable to parse config file {}: {e}", path.display()))
 }
 
 #[tokio::main]
@@ -40,27 +140,40 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let cli = Cli::parse();
+    let config = Arc::new(load_configuration(&cli.config));
+    let prefix = config.prefix.clone();
     let token =
         std::env::var("DISCORD_TOKEN").expect("Missing `DISCORD_TOKEN` environment variable");
 
     let framework = poise::Framework::builder()
         .setup(move |ctx, _ready, _framework| {
             let ctx = ctx.clone();
-            let db_path = cli.db.clone();
+            let config = Arc::clone(&config);
             Box::pin(async move {
-                let db = tokio_rusqlite::Connection::open(&db_path).await?;
+                let db = tokio_rusqlite::Connection::open(&config.db).await?;
                 db.call(|conn| Ok(db::init(conn)?)).await?;
 
                 let quotes = db.call(|conn| Ok(db::all_quote_texts(conn)?)).await?;
-                let model = markov::MarkovModel::build(markov::Order::default(), &quotes);
+                let order = markov::Order::new(config.markov_default_order).unwrap_or_else(|| {
+                    panic!(
+                        "markov_default_order must be between {} and {}",
+                        markov::MIN_ORDER,
+                        markov::MAX_ORDER
+                    )
+                });
+                let model = markov::MarkovModel::build(order, &quotes);
 
-                let lol = Arc::new(lol::LolTracker::new());
-                tokio::spawn(run_lol_tick(ctx, Arc::clone(&lol)));
+                let lol = Arc::new(lol::LolTracker::new(
+                    Duration::from_secs(config.lol_quiet_gap_seconds),
+                    config.laugh_words.clone(),
+                ));
+                tokio::spawn(run_lol_tick(ctx, Arc::clone(&lol), Arc::clone(&config)));
 
                 Ok(Data {
                     db,
                     markov: Arc::new(RwLock::new(model)),
                     lol,
+                    config,
                     started: Instant::now(),
                     queries: AtomicU64::new(0),
                 })
@@ -77,7 +190,7 @@ async fn main() {
                 commands::help(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
-                prefix: Some(cli.prefix.clone()),
+                prefix: Some(prefix),
                 ..Default::default()
             },
             pre_command: |ctx| {
@@ -134,14 +247,20 @@ async fn event_handler(
         return Ok(());
     }
 
-    if new_message.content.to_lowercase().contains("my wife") {
-        if let Some(guild_id) = new_message.guild_id {
-            let murk = ctx
-                .cache
-                .guild(guild_id)
-                .and_then(|guild| guild.emojis.values().find(|e| e.name == "murk").cloned());
-            if let Some(murk) = murk {
-                new_message.react(ctx, murk).await?;
+    let content = new_message.content.to_lowercase();
+    for reaction in &data.config.reactions {
+        if content.contains(&reaction.phrase.to_lowercase()) {
+            if let Some(guild_id) = new_message.guild_id {
+                let emoji = ctx.cache.guild(guild_id).and_then(|guild| {
+                    guild
+                        .emojis
+                        .values()
+                        .find(|e| e.name == reaction.emoji)
+                        .cloned()
+                });
+                if let Some(emoji) = emoji {
+                    new_message.react(ctx, emoji).await?;
+                }
             }
         }
     }
@@ -156,7 +275,11 @@ async fn event_handler(
     Ok(())
 }
 
-async fn run_lol_tick(ctx: serenity::Context, lol: Arc<lol::LolTracker>) {
+async fn run_lol_tick(
+    ctx: serenity::Context,
+    lol: Arc<lol::LolTracker>,
+    config: Arc<Configuration>,
+) {
     let mut interval = tokio::time::interval(LOL_TICK_INTERVAL);
     loop {
         interval.tick().await;
@@ -171,11 +294,8 @@ async fn run_lol_tick(ctx: serenity::Context, lol: Arc<lol::LolTracker>) {
                 }
             }
 
-            match announcement
-                .channel
-                .say(&ctx.http, announcement.tier.message())
-                .await
-            {
+            let text = config.lol_tier_messages.get(announcement.tier);
+            match announcement.channel.say(&ctx.http, text).await {
                 Ok(message) => {
                     lol.record_announcement(announcement.channel, announcement.tier, message.id)
                 }
