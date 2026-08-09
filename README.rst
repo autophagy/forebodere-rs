@@ -47,11 +47,11 @@ Configuration
      - A list of ``{ "phrase": ..., "emoji": ... }`` pairs. When a message
        contains ``phrase``, the bot reacts with the named custom guild
        emoji.
-     - one entry: ``my wife`` → ``murk``
+     - ``[]``
    * - ``lol_tier_messages``
      - The ``{ "low": ..., "medium": ..., "high": ... }`` messages posted
        at each laugh-streak tier.
-     - ``"Multilol!"`` / ``"Ultralol!"`` / ``"M-M-M-MONSTERLOL!"``
+     - ``"Low"`` / ``"Medium"`` / ``"High"``
    * - ``markov_default_order``
      - Chain order (1-5) used for ``!markov`` generation.
      - ``2``

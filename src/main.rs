@@ -40,10 +40,7 @@ struct Reaction {
 }
 
 fn default_reactions() -> Vec<Reaction> {
-    vec![Reaction {
-        phrase: "my wife".to_string(),
-        emoji: "murk".to_string(),
-    }]
+    Vec::new()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -57,15 +54,15 @@ struct TierMessages {
 }
 
 fn default_low_message() -> String {
-    "Multilol!".to_string()
+    "Low".to_string()
 }
 
 fn default_medium_message() -> String {
-    "Ultralol!".to_string()
+    "Medium".to_string()
 }
 
 fn default_high_message() -> String {
-    "M-M-M-MONSTERLOL!".to_string()
+    "High".to_string()
 }
 
 impl Default for TierMessages {

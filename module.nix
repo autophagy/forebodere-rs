@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 with lib;
 
@@ -7,9 +12,12 @@ let
   user = "forebodere";
   group = user;
   settingsFormat = pkgs.formats.json { };
-  configFile = settingsFormat.generate "forebodere-config.json" (cfg.settings // {
-    db = "/var/lib/forebodere/forebodere.db";
-  });
+  configFile = settingsFormat.generate "forebodere-config.json" (
+    cfg.settings
+    // {
+      db = "/var/lib/forebodere/forebodere.db";
+    }
+  );
 in
 {
   options.services.forebodere = {
@@ -31,8 +39,17 @@ in
       example = {
         prefix = "!";
         lol_quiet_gap_seconds = 5;
-        laugh_words = [ "lol" "lmao" "rofl" ];
-        reactions = [{ phrase = "my wife"; emoji = "murk"; }];
+        laugh_words = [
+          "lol"
+          "lmao"
+          "rofl"
+        ];
+        reactions = [
+          {
+            phrase = "my wife";
+            emoji = "murk";
+          }
+        ];
         lol_tier_messages = {
           low = "Multilol!";
           medium = "Ultralol!";
