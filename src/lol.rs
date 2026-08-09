@@ -1,6 +1,6 @@
 use dashmap::DashMap;
 use poise::serenity_prelude as serenity;
-use serenity::{ChannelId, MessageId, UserId};
+use serenity::{ChannelId, UserId};
 use std::time::{Duration, Instant};
 
 pub const DEFAULT_QUIET_GAP: Duration = Duration::from_secs(5);
@@ -53,14 +53,12 @@ struct ChannelState {
     last_author: Option<UserId>,
     last_laugh_at: Option<Instant>,
     announced_tier: Option<Tier>,
-    announcement_message_id: Option<MessageId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Announcement {
     pub channel: ChannelId,
     pub tier: Tier,
-    pub previous_message_id: Option<MessageId>,
 }
 
 pub struct LolTracker {
@@ -91,7 +89,6 @@ impl LolTracker {
             state.frequency = 0;
             state.last_author = None;
             state.announced_tier = None;
-            state.announcement_message_id = None;
         }
     }
 
@@ -114,16 +111,14 @@ impl LolTracker {
                 Some(Announcement {
                     channel: *entry.key(),
                     tier,
-                    previous_message_id: state.announcement_message_id,
                 })
             })
             .collect()
     }
 
-    pub fn record_announcement(&self, channel: ChannelId, tier: Tier, message_id: MessageId) {
+    pub fn record_announcement(&self, channel: ChannelId, tier: Tier) {
         if let Some(mut state) = self.channels.get_mut(&channel) {
             state.announced_tier = Some(tier);
-            state.announcement_message_id = Some(message_id);
         }
     }
 }
@@ -149,10 +144,6 @@ mod tests {
 
     fn cid(n: u64) -> ChannelId {
         ChannelId::new(n)
-    }
-
-    fn mid(n: u64) -> MessageId {
-        MessageId::new(n)
     }
 
     #[test]
@@ -217,7 +208,6 @@ mod tests {
             vec![Announcement {
                 channel,
                 tier: Tier::Low,
-                previous_message_id: None,
             }]
         );
     }
@@ -271,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn escalation_reports_the_previous_message_for_deletion() {
+    fn escalation_announces_each_new_tier_without_referencing_the_last() {
         let tracker = test_tracker();
         let now = Instant::now();
         let channel = cid(1);
@@ -287,10 +277,9 @@ mod tests {
             vec![Announcement {
                 channel,
                 tier: Tier::Low,
-                previous_message_id: None,
             }]
         );
-        tracker.record_announcement(channel, Tier::Low, mid(101));
+        tracker.record_announcement(channel, Tier::Low);
 
         let fourth_laugh_at = after_first_gap + Duration::from_secs(1);
         tracker.handle(channel, uid(4), "lol", fourth_laugh_at);
@@ -301,7 +290,6 @@ mod tests {
             vec![Announcement {
                 channel,
                 tier: Tier::Medium,
-                previous_message_id: Some(mid(101)),
             }]
         );
     }
@@ -340,7 +328,6 @@ mod tests {
             vec![Announcement {
                 channel: cid(1),
                 tier: Tier::Low,
-                previous_message_id: None,
             }]
         );
     }

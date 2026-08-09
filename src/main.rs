@@ -281,21 +281,9 @@ async fn run_lol_tick(
     loop {
         interval.tick().await;
         for announcement in lol.due_announcements(Instant::now()) {
-            if let Some(previous) = announcement.previous_message_id {
-                if let Err(e) = announcement
-                    .channel
-                    .delete_message(&ctx.http, previous)
-                    .await
-                {
-                    tracing::warn!("failed to delete previous lol announcement: {e}");
-                }
-            }
-
             let text = config.lol_tier_messages.get(announcement.tier);
             match announcement.channel.say(&ctx.http, text).await {
-                Ok(message) => {
-                    lol.record_announcement(announcement.channel, announcement.tier, message.id)
-                }
+                Ok(_) => lol.record_announcement(announcement.channel, announcement.tier),
                 Err(e) => tracing::error!("failed to send lol announcement: {e}"),
             }
         }
