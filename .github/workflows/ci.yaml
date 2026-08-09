@@ -1,0 +1,56 @@
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+name: CI
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+            log-lines = 200
+      - uses: cachix/cachix-action@v15
+        with:
+          name: autophagy
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          pushFilter: "(rustc-[0-9.]*-x86_64-unknown-linux-gnu$|.drv.chroot$)"
+      - name: Cargo check
+        run: nix develop -c cargo check
+      - name: Rustfmt check
+        run: nix develop -c cargo fmt --all -- --check
+      - name: Clippy check
+        run: nix develop -c cargo clippy -p forebodere -- -D warnings --no-deps
+
+  build:
+    name: Nix build (${{ matrix.arch }})
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            log-lines = 200
+      - uses: cachix/cachix-action@v15
+        with:
+          name: autophagy
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          pushFilter: "(rustc-[0-9.]*-(x86_64|aarch64)-unknown-linux-gnu$|.drv.chroot$)"
+      - name: Build Forebodere
+        run: nix build
