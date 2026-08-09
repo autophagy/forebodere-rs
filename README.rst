@@ -3,7 +3,7 @@
     :align: center
 
 Forebodere is a quotation bot for Discord. Just for fun.
-Deprecates my old `python_` one.
+Deprecates my old `python`_ one.
 
 Building
 --------
