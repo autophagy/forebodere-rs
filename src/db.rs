@@ -140,6 +140,13 @@ pub fn quote_count(conn: &Connection) -> Result<i64> {
     conn.query_row("SELECT COUNT(*) FROM quotes", [], |row| row.get(0))
 }
 
+/// Every quote's text, for building/rebuilding the in-memory Markov model.
+pub fn all_quote_texts(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT quote FROM quotes")?;
+    let rows = stmt.query_map([], |row| row.get(0))?;
+    rows.collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
