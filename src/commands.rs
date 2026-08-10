@@ -1,4 +1,4 @@
-use crate::{db, markov, Context, Error};
+use crate::{db, llm, markov, Context, Error};
 
 const DISCORD_MESSAGE_LIMIT: usize = 2000;
 
@@ -195,6 +195,46 @@ pub async fn slap(
         "*{bot_name} slaps {target} around a bit with a large trout*"
     ))
     .await?;
+    Ok(())
+}
+
+const GEN_PLACEHOLDER: &str = "\u{1F52E}\u{2728}...";
+const GEN_TEMPERATURE: f32 = 0.8;
+const GEN_MAX_TOKENS: u32 = 80;
+
+/// Reach into the bowels of latent space and see what you find.
+#[poise::command(prefix_command)]
+pub async fn gen(ctx: Context<'_>) -> Result<(), Error> {
+    let Some(endpoint) = ctx.data().config.llm_endpoint.clone() else {
+        ctx.say("No LLM endpoint configured (set `llm_endpoint` in the config).")
+            .await?;
+        return Ok(());
+    };
+
+    let placeholder = ctx.say(GEN_PLACEHOLDER).await?;
+
+    let client = ctx.data().http.clone();
+    let result = llm::generate_quote(
+        &client,
+        &endpoint,
+        llm::DEFAULT_INSTRUCTION,
+        GEN_TEMPERATURE,
+        GEN_MAX_TOKENS,
+    )
+    .await;
+
+    let content = match result {
+        Ok(text) if !text.is_empty() => text,
+        Ok(_) => "Generated an empty response.".to_string(),
+        Err(e) => {
+            tracing::error!("gen failed: {e}");
+            format!("Generation failed: {e}")
+        }
+    };
+
+    placeholder
+        .edit(ctx, poise::CreateReply::default().content(content))
+        .await?;
     Ok(())
 }
 

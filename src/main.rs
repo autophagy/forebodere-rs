@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod llm;
 mod lol;
 mod markov;
 
@@ -16,6 +17,7 @@ pub struct Data {
     pub markov: Arc<RwLock<markov::MarkovModel>>,
     pub lol: Arc<lol::LolTracker>,
     pub config: Arc<Configuration>,
+    pub http: reqwest::Client,
     pub started: Instant,
     pub queries: AtomicU64,
 }
@@ -107,6 +109,9 @@ pub struct Configuration {
 
     #[serde(default = "default_markov_order")]
     markov_default_order: u32,
+
+    #[serde(default)]
+    llm_endpoint: Option<String>,
 }
 
 fn default_prefix() -> String {
@@ -171,6 +176,7 @@ async fn main() {
                     markov: Arc::new(RwLock::new(model)),
                     lol,
                     config,
+                    http: reqwest::Client::new(),
                     started: Instant::now(),
                     queries: AtomicU64::new(0),
                 })
@@ -184,6 +190,7 @@ async fn main() {
                 commands::markov(),
                 commands::status(),
                 commands::slap(),
+                commands::gen(),
                 commands::help(),
             ],
             prefix_options: poise::PrefixFrameworkOptions {
