@@ -204,12 +204,23 @@ const GEN_MAX_TOKENS: u32 = 80;
 
 /// Reach into the bowels of latent space and see what you find.
 #[poise::command(prefix_command)]
-pub async fn gen(ctx: Context<'_>) -> Result<(), Error> {
+pub async fn gen(
+    ctx: Context<'_>,
+    #[rest]
+    #[description = "Optional seed prompt default"]
+    prompt: Option<String>,
+) -> Result<(), Error> {
     let Some(endpoint) = ctx.data().config.llm_endpoint.clone() else {
         ctx.say("No LLM endpoint configured (set `llm_endpoint` in the config).")
             .await?;
         return Ok(());
     };
+
+    let instruction = prompt
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .unwrap_or(llm::DEFAULT_INSTRUCTION);
 
     let placeholder = ctx.say(GEN_PLACEHOLDER).await?;
 
@@ -217,7 +228,7 @@ pub async fn gen(ctx: Context<'_>) -> Result<(), Error> {
     let result = llm::generate_quote(
         &client,
         &endpoint,
-        llm::DEFAULT_INSTRUCTION,
+        instruction,
         GEN_TEMPERATURE,
         GEN_MAX_TOKENS,
     )
