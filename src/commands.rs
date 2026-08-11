@@ -200,7 +200,7 @@ pub async fn slap(
 
 const GEN_PLACEHOLDER: &str = "\u{1F52E}\u{2728}...";
 const GEN_TEMPERATURE: f32 = 0.8;
-const GEN_MAX_TOKENS: u32 = 80;
+const GEN_MAX_TOKENS: u32 = 500;
 
 /// Reach into the bowels of latent space and see what you find.
 #[poise::command(prefix_command)]
