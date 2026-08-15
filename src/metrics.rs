@@ -5,11 +5,13 @@ use opentelemetry_otlp::MetricExporter;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use std::fmt;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 pub struct Metrics {
     pub commands: Counter<u64>,
     pub command_duration: Histogram<f64>,
     pub corpus_size: ObservableGauge<i64>,
+    pub uptime: ObservableGauge<u64>,
 }
 
 pub enum CommandDimension {
@@ -72,6 +74,8 @@ pub fn init_meter_provider(exporter: MetricExporter) -> SdkMeterProvider {
 }
 
 pub fn init_metrics(meter: Meter, db: Arc<Mutex<rusqlite::Connection>>) -> Metrics {
+    let started = Instant::now();
+
     let commands = meter
         .u64_counter("forebodere.commands")
         .with_description("The number of bot commands invoked")
@@ -98,10 +102,20 @@ pub fn init_metrics(meter: Meter, db: Arc<Mutex<rusqlite::Connection>>) -> Metri
         })
         .build();
 
+    let uptime = meter
+        .u64_observable_gauge("forebodere.uptime")
+        .with_description("Uptime of Forebodere")
+        .with_unit("s")
+        .with_callback(move |observer| {
+            observer.observe(started.elapsed().as_secs(), &[]);
+        })
+        .build();
+
     Metrics {
         commands,
         command_duration,
         corpus_size,
+        uptime,
     }
 }
 
