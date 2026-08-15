@@ -7,6 +7,7 @@ mod metrics;
 
 use clap::Parser;
 use opentelemetry::global;
+use opentelemetry::metrics::NoopMeterProvider;
 use opentelemetry_otlp::Protocol;
 use opentelemetry_otlp::WithExportConfig;
 use poise::serenity_prelude as serenity;
@@ -119,7 +120,7 @@ pub struct Configuration {
     llm_endpoint: Option<String>,
 
     #[serde(default)]
-    otlp_endpoint: String,
+    otlp_endpoint: Option<String>,
 }
 
 fn default_prefix() -> String {
@@ -160,12 +161,19 @@ async fn main() {
             let ctx = ctx.clone();
             let config = Arc::clone(&config);
             Box::pin(async move {
-                let otlp_exporter = opentelemetry_otlp::MetricExporter::builder()
-                    .with_http()
-                    .with_protocol(Protocol::HttpBinary)
-                    .with_endpoint(&config.otlp_endpoint)
-                    .build()?;
-                global::set_meter_provider(metrics::init_meter_provider(otlp_exporter));
+                match &config.otlp_endpoint {
+                    Some(endpoint) => {
+                        let otlp_exporter = opentelemetry_otlp::MetricExporter::builder()
+                            .with_http()
+                            .with_protocol(Protocol::HttpBinary)
+                            .with_endpoint(endpoint)
+                            .build()?;
+                        global::set_meter_provider(metrics::init_meter_provider(otlp_exporter));
+                    }
+                    None => {
+                        global::set_meter_provider(NoopMeterProvider::new());
+                    }
+                }
 
                 let metrics_db = Arc::new(Mutex::new(rusqlite::Connection::open(&config.db)?));
                 let metrics = metrics::init_metrics(global::meter("forebodere"), metrics_db);

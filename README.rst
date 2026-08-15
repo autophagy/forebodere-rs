@@ -56,8 +56,8 @@ Configuration
      - Chain order (1-5) used for ``!markov`` generation.
      - ``2``
    * - ``otlp_endpoint``
-     - Endpoint for OTLP metrics export. **Required**.
-     - *none*
+     - Endpoint for OTLP metrics export.
+     - *none*. If unprovided, metrics export is disabled.
 
 Example::
 
