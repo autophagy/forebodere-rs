@@ -55,6 +55,9 @@ Configuration
    * - ``markov_default_order``
      - Chain order (1-5) used for ``!markov`` generation.
      - ``2``
+   * - ``otlp_endpoint``
+     - Endpoint for OTLP metrics export. **Required**.
+     - *none*
 
 Example::
 
@@ -69,7 +72,8 @@ Example::
       "medium": "Ultralol!",
       "high": "M-M-M-MONSTERLOL!"
     },
-    "markov_default_order": 2
+    "markov_default_order": 2,
+    "otlp_endpoint": "http://localhost:9090/api/v1/otlp/v1/metrics",
   }
 
 NixOS Module

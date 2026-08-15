@@ -1,4 +1,4 @@
-use crate::{db, llm, markov, Context, Error};
+use crate::{db, llm, markov, metrics, Context, Error};
 
 const DISCORD_MESSAGE_LIMIT: usize = 2000;
 
@@ -10,6 +10,9 @@ pub async fn addquote(
     #[description = "The quote text"]
     text: Option<String>,
 ) -> Result<(), Error> {
+    let _timer =
+        metrics::CommandTimer::start(&ctx.data().metrics, metrics::CommandDimension::AddQuote);
+
     let Some(text) = text.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()) else {
         ctx.say("No quote to add.").await?;
         return Ok(());
@@ -46,6 +49,9 @@ pub async fn quote(
     #[description = "id:N, a search query, or nothing for a random quote"]
     arg: Option<String>,
 ) -> Result<(), Error> {
+    let _timer =
+        metrics::CommandTimer::start(&ctx.data().metrics, metrics::CommandDimension::Quote);
+
     let db = ctx.data().db.clone();
     let found = match parse_quote_request(arg.as_deref()) {
         QuoteRequest::Random => db.call(|conn| Ok(db::random_quote(conn)?)).await?,
@@ -75,6 +81,9 @@ pub async fn quoteall(
     #[description = "Search query"]
     query: Option<String>,
 ) -> Result<(), Error> {
+    let _timer =
+        metrics::CommandTimer::start(&ctx.data().metrics, metrics::CommandDimension::QuoteAll);
+
     let Some(query) = query
         .map(|q| q.trim().to_string())
         .filter(|q| !q.is_empty())
@@ -107,6 +116,9 @@ pub async fn markov(
     ctx: Context<'_>,
     #[description = "Markov chain order (default: the bot's usual order)"] order: Option<u32>,
 ) -> Result<(), Error> {
+    let _timer =
+        metrics::CommandTimer::start(&ctx.data().metrics, metrics::CommandDimension::MarkovQuote);
+
     let sentence = match order {
         None => ctx.data().markov.read().unwrap().generate(),
         Some(raw_order) => {
@@ -141,6 +153,9 @@ pub async fn markov(
 /// Hows it going
 #[poise::command(prefix_command)]
 pub async fn status(ctx: Context<'_>) -> Result<(), Error> {
+    let _timer =
+        metrics::CommandTimer::start(&ctx.data().metrics, metrics::CommandDimension::Status);
+
     let count = ctx
         .data()
         .db
@@ -185,6 +200,8 @@ pub async fn slap(
     #[description = "Who to slap"]
     target: Option<String>,
 ) -> Result<(), Error> {
+    let _timer = metrics::CommandTimer::start(&ctx.data().metrics, metrics::CommandDimension::Slap);
+
     let target = target
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
@@ -210,6 +227,9 @@ pub async fn gen(
     #[description = "Optional seed prompt default"]
     prompt: Option<String>,
 ) -> Result<(), Error> {
+    let _timer =
+        metrics::CommandTimer::start(&ctx.data().metrics, metrics::CommandDimension::GenQuote);
+
     let Some(endpoint) = ctx.data().config.llm_endpoint.clone() else {
         ctx.say("No LLM endpoint configured (set `llm_endpoint` in the config).")
             .await?;
@@ -255,6 +275,8 @@ pub async fn help(
     ctx: Context<'_>,
     #[description = "Specific command to show help about"] command: Option<String>,
 ) -> Result<(), Error> {
+    let _timer = metrics::CommandTimer::start(&ctx.data().metrics, metrics::CommandDimension::Help);
+
     poise::builtins::help(
         ctx,
         command.as_deref(),

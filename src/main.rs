@@ -3,8 +3,12 @@ mod db;
 mod llm;
 mod lol;
 mod markov;
+mod metrics;
 
 use clap::Parser;
+use opentelemetry::global;
+use opentelemetry_otlp::Protocol;
+use opentelemetry_otlp::WithExportConfig;
 use poise::serenity_prelude as serenity;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -20,6 +24,7 @@ pub struct Data {
     pub http: reqwest::Client,
     pub started: Instant,
     pub queries: AtomicU64,
+    pub metrics: metrics::Metrics,
 }
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -112,6 +117,9 @@ pub struct Configuration {
 
     #[serde(default)]
     llm_endpoint: Option<String>,
+
+    #[serde(default)]
+    otlp_endpoint: String,
 }
 
 fn default_prefix() -> String {
@@ -152,6 +160,15 @@ async fn main() {
             let ctx = ctx.clone();
             let config = Arc::clone(&config);
             Box::pin(async move {
+                let otlp_exporter = opentelemetry_otlp::MetricExporter::builder()
+                    .with_http()
+                    .with_protocol(Protocol::HttpBinary)
+                    .with_endpoint(&config.otlp_endpoint)
+                    .build()?;
+                global::set_meter_provider(metrics::init_meter_provider(otlp_exporter));
+
+                let metrics = metrics::init_metrics(global::meter("forebodere"));
+
                 let db = tokio_rusqlite::Connection::open(&config.db).await?;
                 db.call(|conn| Ok(db::init(conn)?)).await?;
 
@@ -179,6 +196,7 @@ async fn main() {
                     http: reqwest::Client::new(),
                     started: Instant::now(),
                     queries: AtomicU64::new(0),
+                    metrics,
                 })
             })
         })
