@@ -14,7 +14,8 @@ fn normalize(content: &str) -> String {
 }
 
 fn is_repetition(normalized: &str, root: &str) -> bool {
-    !normalized.is_empty()
+    !root.is_empty()
+        && !normalized.is_empty()
         && normalized.len() >= root.len()
         && normalized
             .bytes()
