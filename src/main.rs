@@ -13,7 +13,7 @@ use poise::serenity_prelude as serenity;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 pub struct Data {
@@ -167,7 +167,8 @@ async fn main() {
                     .build()?;
                 global::set_meter_provider(metrics::init_meter_provider(otlp_exporter));
 
-                let metrics = metrics::init_metrics(global::meter("forebodere"));
+                let metrics_db = Arc::new(Mutex::new(rusqlite::Connection::open(&config.db)?));
+                let metrics = metrics::init_metrics(global::meter("forebodere"), metrics_db);
 
                 let db = tokio_rusqlite::Connection::open(&config.db).await?;
                 db.call(|conn| Ok(db::init(conn)?)).await?;

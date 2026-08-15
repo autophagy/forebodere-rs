@@ -1,12 +1,15 @@
-use opentelemetry::metrics::{Counter, Histogram, Meter};
+use crate::db::quote_count;
+use opentelemetry::metrics::{Counter, Histogram, Meter, ObservableGauge};
 use opentelemetry::KeyValue;
 use opentelemetry_otlp::MetricExporter;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use std::fmt;
+use std::sync::{Arc, Mutex};
 
 pub struct Metrics {
     pub commands: Counter<u64>,
     pub command_duration: Histogram<f64>,
+    pub corpus_size: ObservableGauge<i64>,
 }
 
 pub enum CommandDimension {
@@ -68,7 +71,7 @@ pub fn init_meter_provider(exporter: MetricExporter) -> SdkMeterProvider {
         .build()
 }
 
-pub fn init_metrics(meter: Meter) -> Metrics {
+pub fn init_metrics(meter: Meter, db: Arc<Mutex<rusqlite::Connection>>) -> Metrics {
     let commands = meter
         .u64_counter("forebodere.commands")
         .with_description("The number of bot commands invoked")
@@ -83,9 +86,22 @@ pub fn init_metrics(meter: Meter) -> Metrics {
         .with_description("The durations that particular commands took")
         .build();
 
+    let corpus_size = meter
+        .i64_observable_gauge("forebodere.corpus.size")
+        .with_description("Size of the underlying quote corpus")
+        .with_callback(move |observer| {
+            if let Ok(conn) = db.lock() {
+                if let Ok(size) = quote_count(&conn) {
+                    observer.observe(size, &[]);
+                }
+            }
+        })
+        .build();
+
     Metrics {
         commands,
         command_duration,
+        corpus_size,
     }
 }
 
